@@ -54,12 +54,6 @@ TopShelfTracker pulls live data from the ESPN and NCAA APIs, aggregates it serve
 
 ---
 
-## A Note on the Name
-
-*Top shelf* — the top corner of the goal, where the best shots go. Any lacrosse player knows that's where you aim. It felt like the right name for a tracker built by someone who has been chasing that spot since 4th grade.
-
----
-
 ## Support the Project
 
 If TopShelfTracker saves you time or helps you follow the game you love, consider buying me a coffee. It helps keep the server running and the data flowing.
