@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TopShelfTracker — NCAA Lacrosse Live Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #f4f6fa;
+    --bg2:      #0d1220;
+    --bg3:      #131929;
+    --border:   #1e2d4a;
+    --border2:  #253550;
+    --text:     #e8edf5;
+    --muted:    #5a6e8a;
+    --muted2:   #3a4e68;
+    --cyan:     #00d4ff;
+    --cyan-dim: #0090b0;
+    --red:      #ff3d55;
+    --green:    #22e87a;
+    --yellow:   #ffc53d;
+    --sky:      #7ec8f5;
+    --div1:     #00d4ff;
+    --div2:     #ffc53d;
+    --div3:     #d966ff;
+    --men:      #7ec8f5;
+    --women:    #d966ff;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Barlow', sans-serif; font-size: 14px; min-height: 100vh; overflow-x: hidden; }
+
+  
+  #header { position: sticky; top: 0; z-index: 100; background: var(--bg2); border-bottom: 2px solid var(--cyan-dim); padding: 10px 20px; display: flex; align-items: center; gap: 16px; position: relative; }
+  .logo { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 26px; letter-spacing: 2px; color: var(--cyan); text-transform: uppercase; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+  .header-status { display: flex; align-items: center; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); position: absolute; left: 50%; transform: translateX(-50%); }
+  .live-dot { width: 8px; height: 8px; background: var(--red); border-radius: 50%; animation: blink 1.4s ease-in-out infinite; flex-shrink: 0; }
+  .live-dot.ok { background: var(--green); }
+  @keyframes blink { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
+
+  
+  #progress-wrap { height: 3px; background: var(--bg3); display: none; }
+  #progress-bar  { height: 100%; width: 0%; background: linear-gradient(90deg, var(--cyan), var(--green)); transition: width .3s ease; }
+
+  
+  #controls { background: var(--bg3); border-bottom: 1px solid var(--border); padding: 8px 20px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ctrl-label { font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 11px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; margin-right: 4px; }
+  .ctrl-group { display: flex; gap: 4px; }
+  .ctrl-sep   { width: 1px; height: 22px; background: var(--border); margin: 0 6px; }
+  .btn { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: 1px; padding: 5px 14px; border: 1.5px solid var(--border2); background: transparent; color: var(--muted); cursor: pointer; border-radius: 4px; text-transform: uppercase; transition: all .15s ease; }
+  .btn:hover    { border-color: var(--cyan-dim); color: var(--text); background: rgba(0,212,255,.06); }
+  .btn:disabled { opacity: .35; cursor: default; }
+  .btn.active-div1  { border-color:var(--div1);  color:var(--div1);  background:rgba(0,212,255,.1); }
+  .btn.active-div2  { border-color:var(--div2);  color:var(--div2);  background:rgba(255,197,61,.1); }
+  .btn.active-div3  { border-color:var(--div3);  color:var(--div3);  background:rgba(217,102,255,.1); }
+  .btn.active-both  { border-color:var(--cyan);  color:var(--cyan);  background:rgba(0,212,255,.1); }
+  .btn.active-men   { border-color:var(--men);   color:var(--men);   background:rgba(126,200,245,.1); }
+  .btn.active-women { border-color:var(--women); color:var(--women); background:rgba(217,102,255,.1); }
+  .btn-refresh { border-color: var(--green); color: var(--green); margin-left: auto; }
+  .btn-refresh:hover { background: rgba(34,232,122,.1); }
+  .btn-refresh.spinning svg { animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #countdown { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted2); margin-left: 6px; }
+
+  
+  #summary { padding: 10px 20px; display: flex; align-items: center; justify-content: center; gap: 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; background: var(--bg2); position: relative; }
+  .summary-stat { display: flex; align-items: center; gap: 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 700; }
+  .summary-stat .val { font-size: 18px; }
+  .stat-live{color:var(--red)} .stat-final{color:var(--text)} .stat-pre{color:var(--muted)} .stat-total{color:var(--cyan)}
+  .summary-sep { color: var(--muted2); }
+  .season-label { position: absolute; right: 20px; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
+
+  #live-section {
+    display: none;   /* shown only when there are live games */
+    padding: 0 20px 20px;
+    background: var(--bg);
+  }
+
+  .live-section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 0 10px;
+  }
+  .live-section-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+    font-size: 13px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--red);
+  }
+  .live-section-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(255,61,85,.5), transparent);
+  }
+  .live-pulse-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,61,85,.12);
+    border: 1px solid rgba(255,61,85,.35);
+    border-radius: 20px;
+    padding: 3px 10px 3px 7px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 800;
+    font-size: 12px;
+    letter-spacing: 1px;
+    color: var(--red);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .live-pulse-badge .dot {
+    width: 7px; height: 7px;
+    background: var(--red);
+    border-radius: 50%;
+    animation: blink 1s ease-in-out infinite;
+  }
+
+  
+  .live-rail {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+  .live-rail::-webkit-scrollbar { height: 4px; }
+  .live-rail::-webkit-scrollbar-track { background: var(--bg3); border-radius: 2px; }
+  .live-rail::-webkit-scrollbar-thumb { background: rgba(255,61,85,.4); border-radius: 2px; }
+
+  
+  .live-card {
+    flex: 0 0 300px;
+    scroll-snap-align: start;
+    background: #110a0d;
+    border: 1.5px solid var(--red);
+    border-radius: 10px;
+    padding: 14px 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+    overflow: hidden;
+    transition: transform .15s;
+  }
+  .live-card:hover { transform: translateY(-2px); }
+
+  
+  .live-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--red), #ff8c00, var(--red));
+    background-size: 200% 100%;
+    animation: redshift 2.5s linear infinite;
+  }
+  @keyframes redshift { 0%{background-position:0%} 100%{background-position:200%} }
+
+  
+  .live-card::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(255,61,85,.07) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .live-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .live-clock {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--red);
+    letter-spacing: .5px;
+  }
+
+  
+  .live-score-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 10px;
+  }
+  .live-abbr {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+    font-size: 22px;
+    letter-spacing: .5px;
+    min-width: 44px;
+  }
+  .live-abbr.away   { color: var(--sky); }
+  .live-abbr.home   { color: var(--cyan); }
+  .live-abbr.winner { color: var(--green); }
+  .live-team-name {
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .live-score {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+    font-size: 32px;
+    line-height: 1;
+    color: var(--text);
+    min-width: 36px;
+    text-align: right;
+  }
+  .live-score.winner { color: var(--green); }
+
+  .live-divider {
+    height: 1px;
+    background: rgba(255,61,85,.2);
+    margin: 0 -2px;
+  }
+
+  .live-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .live-meta {
+    font-size: 11px;
+    color: var(--muted2);
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .live-gender-badge {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 800;
+    font-size: 11px;
+    letter-spacing: 1px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .live-gender-badge.men   { background: rgba(126,200,245,.15); color: var(--men);   border: 1px solid rgba(126,200,245,.3); }
+  .live-gender-badge.women { background: rgba(217,102,255,.15); color: var(--women); border: 1px solid rgba(217,102,255,.3); }
+
+  #upcoming-section {
+    display: none;
+    padding: 0 20px 20px;
+    background: var(--bg);
+  }
+  .upcoming-section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 0 10px;
+  }
+  .upcoming-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0,212,255,.1);
+    border: 1px solid rgba(0,212,255,.3);
+    border-radius: 20px;
+    padding: 3px 10px 3px 8px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 800;
+    font-size: 12px;
+    letter-spacing: 1px;
+    color: var(--cyan);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .upcoming-badge .dot {
+    width: 7px; height: 7px;
+    background: var(--cyan);
+    border-radius: 50%;
+    opacity: .8;
+  }
+  .upcoming-section-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+    font-size: 13px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--cyan-dim);
+  }
+  .upcoming-section-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(0,212,255,.3), transparent);
+  }
+
+  .upcoming-rail {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+  .upcoming-rail::-webkit-scrollbar { height: 4px; }
+  .upcoming-rail::-webkit-scrollbar-track { background: var(--bg3); border-radius: 2px; }
+  .upcoming-rail::-webkit-scrollbar-thumb { background: rgba(0,212,255,.3); border-radius: 2px; }
+
+  .upcoming-card {
+    flex: 0 0 280px;
+    scroll-snap-align: start;
+    background: #080e1a;
+    border: 1.5px solid rgba(0,180,220,.35);
+    border-radius: 10px;
+    padding: 13px 15px 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    position: relative;
+    overflow: hidden;
+    transition: transform .15s, border-color .2s;
+  }
+  .upcoming-card:hover { transform: translateY(-2px); border-color: var(--cyan); }
+  .upcoming-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--cyan), transparent 70%);
+    opacity: .5;
+  }
+  .upcoming-card::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(0,212,255,.04) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .upcoming-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .upcoming-time {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 11px;
+    color: var(--cyan);
+    letter-spacing: .5px;
+  }
+  .upcoming-date-chip {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--muted2);
+    text-transform: uppercase;
+  }
+  .upcoming-vs-row {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 9px;
+  }
+  .upcoming-abbr {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+    font-size: 20px;
+    letter-spacing: .5px;
+    min-width: 40px;
+  }
+  .upcoming-abbr.away { color: var(--sky); }
+  .upcoming-abbr.home { color: var(--cyan); }
+  .upcoming-team-name {
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .upcoming-record {
+    font-size: 9px;
+    color: var(--muted2);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .upcoming-vs-divider {
+    height: 1px;
+    background: rgba(0,212,255,.12);
+    margin: 0 -2px;
+  }
+  .upcoming-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .upcoming-meta {
+    font-size: 10px;
+    color: var(--muted2);
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  #games-section {
+    padding: 0 20px 20px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 0 10px;
+  }
+  .section-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 800;
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .section-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--border2), transparent);
+  }
+  .section-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted2);
+  }
+
+  #game-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 10px;
+  }
+
+  .game-card { background: var(--bg2); border: 1.5px solid var(--border); border-radius: 8px; padding: 11px 13px; display: flex; flex-direction: column; gap: 7px; transition: border-color .2s, transform .15s; position: relative; overflow: hidden; }
+  .game-card:hover { transform: translateY(-1px); }
+  .game-card.pre { border-color: var(--border); opacity: .85; }
+  .card-header { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .matchup-label { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: .5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  .matchup-label.post { color: var(--text); }
+  .matchup-label.pre  { color: var(--muted); }
+  .gender-badge { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 10px; letter-spacing: 1px; padding: 2px 7px; border-radius: 3px; text-transform: uppercase; flex-shrink: 0; }
+  .gender-badge.men   { background:rgba(126,200,245,.12); color:var(--men);   border:1px solid rgba(126,200,245,.25); }
+  .gender-badge.women { background:rgba(217,102,255,.12); color:var(--women); border:1px solid rgba(217,102,255,.25); }
+  .score-table { display: flex; flex-direction: column; gap: 3px; }
+  .score-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; }
+  .team-info { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+  .team-abbr { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 17px; letter-spacing: .5px; flex-shrink: 0; }
+  .team-abbr.winner{color:var(--green)} .team-abbr.away{color:var(--sky)} .team-abbr.home{color:var(--cyan)}
+  .team-name   { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
+  .team-record { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--muted); white-space: nowrap; }
+  .team-score  { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 24px; line-height: 1; color: var(--text); min-width: 28px; text-align: right; }
+  .team-score.winner { color: var(--green); }
+  .score-divider { color: var(--muted2); font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; text-align: center; }
+  .card-footer { display: flex; flex-direction: column; gap: 2px; }
+  .status-line { display: flex; align-items: center; gap: 5px; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 700; }
+  .status-emoji { font-size: 11px; }
+  .status-post{color:var(--text)} .status-pre{color:var(--muted)}
+  .broadcast { font-size: 10px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+  .card-meta  { font-size: 10px; color: var(--muted2); display: flex; gap: 6px; flex-wrap: wrap; }
+
+  #pagination { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 16px 20px; }
+  .page-info  { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--muted); min-width: 180px; text-align: center; }
+
+  .empty-state, .error-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 60px 20px; text-align: center; }
+  .grid-empty { grid-column: 1/-1; }
+  .empty-icon  { font-size: 44px; }
+  .empty-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 20px; letter-spacing: 1px; color: var(--muted); }
+  .empty-sub   { font-size: 13px; color: var(--muted2); max-width: 420px; line-height: 1.7; }
+  .error-title { color: var(--yellow); }
+  .empty-sub code { background: var(--bg3); padding: 2px 6px; border-radius: 3px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--cyan); }
+
+  .skeleton { background: linear-gradient(90deg,var(--bg3) 25%,var(--border) 50%,var(--bg3) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 4px; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+  .skeleton-card { background: var(--bg2); border: 1.5px solid var(--border); border-radius: 8px; padding: 13px; display: flex; flex-direction: column; gap: 9px; }
+
+  .team-filter-wrap { display: flex; align-items: center; gap: 6px; }
+  #team-filter {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: .5px;
+    padding: 5px 26px 5px 10px;
+    background: var(--bg2);
+    border: 1.5px solid var(--border2);
+    color: var(--muted);
+    border-radius: 4px;
+    cursor: pointer;
+    outline: none;
+    min-width: 160px;
+    max-width: 220px;
+    transition: border-color .15s, color .15s;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235a6e8a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+  }
+  #team-filter:focus, #team-filter:hover { border-color: var(--cyan-dim); color: var(--text); }
+  #team-filter.active { border-color: var(--cyan); color: var(--cyan); background-color: rgba(0,212,255,.08); }
+
+  @media (max-width: 600px) {
+    #live-section, #upcoming-section, #games-section { padding-left: 12px; padding-right: 12px; }
+    #header, #controls, #summary  { padding-left: 12px; padding-right: 12px; }
+    #game-grid { grid-template-columns: 1fr; }
+    .live-card { flex: 0 0 260px; }
+    .upcoming-card { flex: 0 0 240px; }
+    .logo { font-size: 20px; }
+    .season-label { display: none; }
+    #summary { justify-content: center; }
+    .header-status { position: static; transform: none; margin-left: auto; }
+    #search-input { width: 130px; }
+  }
+
+  .search-wrap { display: flex; align-items: center; gap: 0; position: relative; }
+  #search-input {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: .5px;
+    padding: 5px 28px 5px 10px;
+    background: var(--bg2);
+    border: 1.5px solid var(--border2);
+    color: var(--muted);
+    border-radius: 4px;
+    outline: none;
+    width: 180px;
+    transition: border-color .15s, color .15s, width .2s;
+    -webkit-appearance: none;
+  }
+  #search-input::placeholder { color: var(--muted2); }
+  #search-input:focus, #search-input:hover { border-color: var(--cyan-dim); color: var(--text); }
+  #search-input.active { border-color: var(--cyan); color: var(--cyan); }
+  #search-clear {
+    position: absolute; right: 7px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer;
+    color: var(--muted2); font-size: 14px; line-height: 1;
+    display: none; padding: 0;
+  }
+  #search-input.active ~ #search-clear { display: block; }
+  #search-clear:hover { color: var(--text); }
+
+
+  #search-autocomplete {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    width: 220px;
+    background: var(--bg2);
+    border: 1.5px solid var(--cyan-dim);
+    border-radius: 6px;
+    z-index: 200;
+    overflow: hidden;
+    box-shadow: 0 6px 20px rgba(0,0,0,.4);
+  }
+  .ac-item {
+    padding: 7px 12px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    transition: background .1s, color .1s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ac-item:last-child { border-bottom: none; }
+  .ac-item:hover { background: rgba(0,212,255,.08); color: var(--text); }
+  .ac-item strong { color: var(--cyan); font-weight: 800; }
+  .bmc-link { display: inline-flex; align-items: center; gap: 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted2); text-decoration: none; padding: 5px 10px; border: 1px solid var(--border); border-radius: 20px; transition: color .2s, border-color .2s, background .2s; }
+  .bmc-link:hover { color: var(--yellow); border-color: var(--yellow); background: rgba(255,197,61,.06); }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div class="logo">🥍 TopShelfTracker</div>
+  <div class="header-status">
+    <div class="live-dot" id="live-dot"></div>
+    <span id="fetch-status">Loading season…</span>
+    <span id="countdown"></span>
+  </div>
+</div>
+
+<div id="progress-wrap"><div id="progress-bar"></div></div>
+
+<div id="controls">
+  <span class="ctrl-label">Division</span>
+  <div class="ctrl-group">
+    <button class="btn active-div1" id="btn-d1" onclick="setDiv(1)">D1</button>
+    <button class="btn"             id="btn-d2" onclick="setDiv(2)">D2</button>
+    <button class="btn"             id="btn-d3" onclick="setDiv(3)">D3</button>
+  </div>
+  <div class="ctrl-sep"></div>
+  <span class="ctrl-label">Gender</span>
+  <div class="ctrl-group">
+    <button class="btn active-both" id="btn-both"  onclick="setGender('both')">Both</button>
+    <button class="btn"             id="btn-men"   onclick="setGender('men')">♂ Men's</button>
+    <button class="btn"             id="btn-women" onclick="setGender('women')">♀ Women's</button>
+  </div>
+  <div class="ctrl-sep"></div>
+  <div class="team-filter-wrap">
+    <span class="ctrl-label">Team</span>
+    <select id="team-filter" onchange="setTeamFilter(this.value)">
+      <option value="">All Teams</option>
+    </select>
+  </div>
+  <div class="ctrl-sep"></div>
+  <div class="search-wrap">
+    <input id="search-input" type="text" placeholder="🔍 Search teams…" oninput="setSearch(this.value)" onblur="setTimeout(hideAutocomplete,150)" autocomplete="off" spellcheck="false" />
+    <button id="search-clear" onclick="clearSearch()" title="Clear search">✕</button>
+    <div id="search-autocomplete"></div>
+  </div>
+  <button class="btn btn-refresh" id="btn-refresh" onclick="manualRefresh()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+    Refresh
+  </button>
+</div>
+
+<div id="summary">
+  <div class="summary-stat stat-live">🔴 <span class="val" id="sum-live">—</span> <span>Live</span></div>
+  <span class="summary-sep">·</span>
+  <div class="summary-stat stat-pre">🕐 <span class="val" id="sum-pre">—</span> <span>Upcoming</span></div>
+  <span class="season-label" id="season-label">2026 · Division I</span>
+</div>
+
+<div id="live-section">
+  <div class="live-section-header">
+    <div class="live-pulse-badge"><span class="dot"></span> Live Now</div>
+    <span class="live-section-title">Games In Progress</span>
+    <div class="live-section-line"></div>
+    <span id="live-count" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted2)"></span>
+  </div>
+  <div class="live-rail" id="live-rail"></div>
+</div>
+
+<div id="upcoming-section">
+  <div class="upcoming-section-header">
+    <div class="upcoming-badge"><span class="dot"></span> Up Next</div>
+    <span class="upcoming-section-title">Upcoming Games</span>
+    <div class="upcoming-section-line"></div>
+    <span id="upcoming-count" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted2)"></span>
+  </div>
+  <div class="upcoming-rail" id="upcoming-rail"></div>
+</div>
+
+<div id="games-section">
+  <div class="section-header">
+    <span class="section-title" id="games-section-title">Past Results</span>
+    <div class="section-line"></div>
+    <span class="section-count" id="games-section-count"></span>
+  </div>
+  <div id="game-grid">
+    <div class="skeleton-card"><div class="skeleton" style="height:13px;width:55%"></div><div class="skeleton" style="height:26px"></div><div class="skeleton" style="height:26px"></div><div class="skeleton" style="height:11px;width:40%"></div></div>
+    <div class="skeleton-card"><div class="skeleton" style="height:13px;width:55%"></div><div class="skeleton" style="height:26px"></div><div class="skeleton" style="height:26px"></div><div class="skeleton" style="height:11px;width:40%"></div></div>
+    <div class="skeleton-card"><div class="skeleton" style="height:13px;width:55%"></div><div class="skeleton" style="height:26px"></div><div class="skeleton" style="height:26px"></div><div class="skeleton" style="height:11px;width:40%"></div></div>
+    <div class="skeleton-card"><div class="skeleton" style="height:13px;width:55%"></div><div class="skeleton" style="height:26px"></div><div class="skeleton" style="height:26px"></div><div class="skeleton" style="height:11px;width:40%"></div></div>
+    <div class="skeleton-card"><div class="skeleton" style="height:13px;width:55%"></div><div class="skeleton" style="height:26px"></div><div class="skeleton" style="height:26px"></div><div class="skeleton" style="height:11px;width:40%"></div></div>
+    <div class="skeleton-card"><div class="skeleton" style="height:13px;width:55%"></div><div class="skeleton" style="height:26px"></div><div class="skeleton" style="height:26px"></div><div class="skeleton" style="height:11px;width:40%"></div></div>
+  </div>
+</div>
+
+<div id="pagination" style="display:none">
+  <button class="btn" id="btn-prev" onclick="changePage(-1)">← Prev</button>
+  <span class="page-info" id="page-info"></span>
+  <button class="btn" id="btn-next" onclick="changePage(1)">Next →</button>
+</div>
+
+<script src="laxstats.min.js?v=4"></script>
+
+<div style="padding: 18px 24px 28px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+  <p style="font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted2);">
+    © 2026 TopShelfTracker. All rights reserved.
+  </p>
+  <a class="bmc-link" href="https://buymeacoffee.com/topshelftracker" target="_blank" rel="noopener">
+    ☕ Buy Me a Coffee
+  </a>
+</div>
+</body>
+</html>
